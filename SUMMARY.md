@@ -55,7 +55,7 @@ AI Travel Analyst is a three-layer data science pipeline built on a real Indian 
 
 **Q: What was hardest?**
 
-> "The data cleaning. Duration and time columns were stored as inconsistent strings ('2h 30m', '1h', '45m', '18:30 PM') requiring regex parsing before they could be used as features. The bigger challenge was the lack of a booking date: without it, true days-to-departure — a major pricing signal — can't be computed. I derived a proxy (relative journey date ordering within the dataset), documented the limitation explicitly, and calibrated expectations about how much predictive power that feature would carry."
+> "The data cleaning. The dataset stored every column as a string object — including numerics like Price, Distance_km, and Days_Before_Departure. Price came in multiple formats: plain numbers, currency-prefixed strings like 'Rs. 200,000.00', and pure integers. Duration was a mix of 'Xh Ym' strings and bare floats (which had to be interpreted as hours, not minutes — a non-obvious choice that required reading the data carefully). Total_Stops mixed 'non-stop', '0', '1 stop', and '1' interchangeably. Departure times mixed 12h and 24h formats. All of this had to be parsed with targeted regex before any feature engineering was possible. About 7,800 rows had unparseable prices and had to be dropped. Getting all of that right without losing too many rows took the most careful attention."
 
 **Q: What do RMSE and R² actually mean here?**
 
