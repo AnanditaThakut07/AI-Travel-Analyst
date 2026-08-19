@@ -63,10 +63,14 @@ PREFERENCE_WEIGHTS = {
 
 
 def load_artifacts():
-    for p in [CLEAN_CSV, MODEL_PATH, META_JSON]:
-        if not os.path.exists(p):
-            sys.exit(f"[ERROR] {p} not found. Run earlier stages first.")
-
+    missing = [p for p in [CLEAN_CSV, MODEL_PATH, META_JSON] if not os.path.exists(p)]
+    if missing:
+        raise RuntimeError(
+            f"Missing pipeline artifacts: {missing}\n"
+            "Run the pipeline first:\n"
+            "  python3 src/features.py\n"
+            "  python3 src/model.py"
+        )
     df    = pd.read_csv(CLEAN_CSV, low_memory=False)
     model = joblib.load(MODEL_PATH)
     with open(META_JSON) as f:
