@@ -159,33 +159,37 @@ def plot_price_vs_dtd(df: pd.DataFrame):
     """
     Chart type: scatter + linear trend line (matplotlib)
     Question answered: Does booking earlier lead to lower prices?
-    Insight: A clear negative slope (if present) confirms the well-known
-    booking lead-time effect. If the slope is flat, it suggests the dataset
-    captures fares at a single snapshot in time rather than dynamic pricing —
-    an important caveat to note in the README and SUMMARY.
+    Insight: A clear negative slope confirms the well-known booking lead-time
+    effect — airlines charge a premium for last-minute purchases. A flat
+    slope would suggest fares in this dataset are static rather than dynamic.
     """
-    if "days_to_departure" not in df.columns:
-        print("[Stage 3] No days_to_departure column — skipping chart 4.")
+    # Support both column name variants
+    dtd_col = None
+    for candidate in ["Days_Before_Departure", "days_to_departure"]:
+        if candidate in df.columns:
+            dtd_col = candidate
+            break
+    if dtd_col is None:
+        print("[Stage 3] No days-to-departure column — skipping chart 4.")
         return
 
-    sample = df[["days_to_departure", "Price"]].dropna()
+    sample = df[[dtd_col, "Price"]].dropna()
     if len(sample) > 5000:
         sample = sample.sample(5000, random_state=42)
 
     fig, ax = plt.subplots(figsize=(10, 5))
-    ax.scatter(sample["days_to_departure"], sample["Price"],
+    ax.scatter(sample[dtd_col], sample["Price"],
                alpha=0.2, s=8, color=PALETTE[0], rasterized=True)
 
-    # Trend line
-    z = np.polyfit(sample["days_to_departure"], sample["Price"], 1)
+    z = np.polyfit(sample[dtd_col], sample["Price"], 1)
     p = np.poly1d(z)
-    x_line = np.linspace(sample["days_to_departure"].min(), sample["days_to_departure"].max(), 200)
+    x_line = np.linspace(sample[dtd_col].min(), sample[dtd_col].max(), 200)
     ax.plot(x_line, p(x_line), color=PALETTE[1], linewidth=2,
             label=f"Trend (slope={z[0]:+.1f} ₹/day)")
 
-    ax.set_xlabel("Days to Departure (proxy)")
+    ax.set_xlabel("Days Before Departure")
     ax.set_ylabel("Price (₹)")
-    ax.set_title("Price vs. Days to Departure")
+    ax.set_title("Price vs. Days Before Departure")
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"₹{x:,.0f}"))
     ax.legend(labelcolor=TEXT_COLOR, facecolor=BG_COLOR, edgecolor=GRID_COLOR)
     _apply_dark_style(ax, fig)

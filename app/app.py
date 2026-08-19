@@ -374,8 +374,10 @@ predicted price, duration, and number of stops according to your stated preferen
     if df is None or model is None:
         st.warning("Pipeline artifacts not found. Run all src/ scripts first.")
     else:
-        src_col = next((c for c in df.columns if c.lower() in ("source","from")), None)
-        dst_col = next((c for c in df.columns if c.lower() in ("destination","to")), None)
+        src_col = "Source" if "Source" in df.columns else next(
+            (c for c in df.columns if c.lower() in ("source","from")), None)
+        dst_col = "Destination" if "Destination" in df.columns else next(
+            (c for c in df.columns if c.lower() in ("destination","to")), None)
 
         sources      = sorted(df[src_col].dropna().unique().tolist()) if src_col else []
         destinations = sorted(df[dst_col].dropna().unique().tolist()) if dst_col else []
@@ -454,36 +456,46 @@ elif section == "Price Predictor":
         feature_cols = meta.get("feature_cols", [])
         freq_maps    = meta.get("freq_maps", {})
 
-        airline_col = next((c for c in df.columns if "airline" in c.lower()), None)
-        src_col     = next((c for c in df.columns if c.lower() in ("source","from")), None)
-        dst_col     = next((c for c in df.columns if c.lower() in ("destination","to")), None)
+        src_col = "Source" if "Source" in df.columns else next(
+            (c for c in df.columns if c.lower() in ("source","from")), None)
+        dst_col = "Destination" if "Destination" in df.columns else next(
+            (c for c in df.columns if c.lower() in ("destination","to")), None)
+        airline_col = "Airline" if "Airline" in df.columns else next(
+            (c for c in df.columns if "airline" in c.lower()), None)
 
         col1, col2 = st.columns(2)
         with col1:
-            airline     = st.selectbox("Airline",    sorted(df[airline_col].dropna().unique()) if airline_col else ["—"])
-            source      = st.selectbox("From",       sorted(df[src_col].dropna().unique())     if src_col else ["—"])
-            destination = st.selectbox("To",         sorted(df[dst_col].dropna().unique())     if dst_col else ["—"])
+            airline     = st.selectbox("Airline", sorted(df[airline_col].dropna().unique()) if airline_col else ["—"])
+            source      = st.selectbox("From",    sorted(df[src_col].dropna().unique())     if src_col else ["—"])
+            destination = st.selectbox("To",      sorted(df[dst_col].dropna().unique())     if dst_col else ["—"])
+            travel_class = st.selectbox("Travel Class",
+                sorted(df["Travel_Class"].dropna().unique()) if "Travel_Class" in df.columns else ["Economy"])
         with col2:
             stops           = st.slider("Number of stops", 0, 4, 1)
             duration_hours  = st.number_input("Duration (hours)", min_value=0.5, max_value=24.0, value=2.5, step=0.5)
             dep_hour        = st.slider("Departure hour (24h)", 0, 23, 9)
+            days_before     = st.slider("Days before departure", 0, 365, 30)
 
         duration_minutes = duration_hours * 60
-        # dep_hour → bucket
         dep_bucket = 0 if dep_hour < 6 else (1 if dep_hour < 12 else (2 if dep_hour < 18 else 3))
 
         if st.button("Predict price", key="pred_run"):
-            # Build a one-row DataFrame matching the clean schema
             row = pd.DataFrame([{
-                airline_col if airline_col else "Airline": airline,
-                src_col     if src_col     else "Source":  source,
-                dst_col     if dst_col     else "Destination": destination,
-                "stops":            stops,
-                "duration_minutes": duration_minutes,
-                "dep_time_bucket":  dep_bucket,
-                "days_to_departure": 30,  # reasonable default
-                "journey_month":    4,
-                "journey_dow":      0,
+                "Airline":              airline,
+                "Source":               source,
+                "Destination":          destination,
+                "Travel_Class":         travel_class,
+                "stops":                stops,
+                "duration_minutes":     duration_minutes,
+                "dep_time_bucket":      dep_bucket,
+                "Days_Before_Departure": days_before,
+                "Distance_km":          500.0,  # placeholder — model handles
+                "Passenger_Count":      1,
+                "Season":               "Summer",
+                "Weekday":              "Monday",
+                "Aircraft_Type":        "Airbus A320",
+                "Booking_Channel":      "Website",
+                "journey_month":        4,
             }])
 
             sys.path.insert(0, os.path.join(ROOT_DIR, "src"))

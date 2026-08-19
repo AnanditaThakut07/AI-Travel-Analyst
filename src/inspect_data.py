@@ -1,71 +1,37 @@
 """
 Stage 1 — Data Acquisition & Inspection
 
-Downloads the raw flight dataset from Google Drive (if not already present),
-loads it, and prints a comprehensive schema summary to stdout and to
-outputs/schema_summary.txt.
+Loads the flight dataset from data/raw/flights.csv, prints a comprehensive
+schema summary, and saves the report to outputs/schema_summary.txt.
 
-Why this comes first: before any cleaning or modelling, we need to know
+Why this comes first: before any cleaning or modelling we need to know
 exactly what columns, data types, null patterns, and value distributions
-are actually in the file. Every later stage adapts to what we find here.
+are in the file. Every later stage adapts to what we find here.
+
+Actual schema confirmed (100,000 rows × 18 columns):
+  Flight_ID, Airline, Source, Destination, Departure_Date, Departure_Time,
+  Arrival_Time, Duration, Total_Stops, Distance_km, Travel_Class,
+  Days_Before_Departure, Season, Weekday, Aircraft_Type, Booking_Channel,
+  Passenger_Count, Price
 """
 
 import os
 import sys
-import textwrap
 import pandas as pd
 
-# ── paths ──────────────────────────────────────────────────────────────────
-RAW_DIR   = os.path.join(os.path.dirname(__file__), "..", "data", "raw")
-OUT_DIR   = os.path.join(os.path.dirname(__file__), "..", "outputs")
-GDRIVE_ID = "1tNUDxjXHzbRXe8CQdIoyJWh8OweGW0rR"
-
-# Try both possible extensions — Drive exports are often xlsx
-RAW_XLSX  = os.path.join(RAW_DIR, "flights.xlsx")
-RAW_CSV   = os.path.join(RAW_DIR, "flights.csv")
-
-
-def download_if_needed() -> str:
-    """Download dataset from Google Drive using gdown; return local path."""
-    os.makedirs(RAW_DIR, exist_ok=True)
-
-    if os.path.exists(RAW_XLSX):
-        print(f"[INFO] Dataset already present: {RAW_XLSX}")
-        return RAW_XLSX
-    if os.path.exists(RAW_CSV):
-        print(f"[INFO] Dataset already present: {RAW_CSV}")
-        return RAW_CSV
-
-    try:
-        import gdown
-        url = f"https://drive.google.com/uc?id={GDRIVE_ID}"
-        dest = RAW_XLSX
-        print(f"[INFO] Downloading dataset from Google Drive …")
-        gdown.download(url, dest, quiet=False, fuzzy=True)
-        if not os.path.exists(dest):
-            raise FileNotFoundError("gdown did not create the output file.")
-        return dest
-    except Exception as e:
-        print(f"[ERROR] Auto-download failed: {e}")
-        print(
-            "[ACTION REQUIRED] Please download the dataset manually from:\n"
-            "  https://drive.google.com/file/d/1tNUDxjXHzbRXe8CQdIoyJWh8OweGW0rR/view\n"
-            "and place it at:  data/raw/flights.xlsx  (or flights.csv)\n"
-            "Then re-run this script."
-        )
-        sys.exit(1)
+ROOT_DIR = os.path.join(os.path.dirname(__file__), "..")
+RAW_CSV  = os.path.join(ROOT_DIR, "data", "raw", "flights.csv")
+OUT_DIR  = os.path.join(ROOT_DIR, "outputs")
 
 
 def load_dataset(path: str) -> pd.DataFrame:
-    """Load xlsx or csv into a DataFrame."""
     ext = os.path.splitext(path)[1].lower()
     if ext in (".xlsx", ".xls"):
         return pd.read_excel(path)
-    return pd.read_csv(path)
+    return pd.read_csv(path, low_memory=False)
 
 
 def inspect(df: pd.DataFrame) -> str:
-    """Build a detailed schema/inspection report as a string."""
     lines = []
 
     def h(text):
@@ -86,23 +52,22 @@ def inspect(df: pd.DataFrame) -> str:
     h("NULL COUNTS (per column)")
     null_counts = df.isnull().sum()
     null_pct    = (null_counts / len(df) * 100).round(2)
-    null_df     = pd.DataFrame({"nulls": null_counts, "pct": null_pct})
+    null_df     = pd.DataFrame({"nulls": null_counts, "pct_%": null_pct})
     lines.append(null_df.to_string())
 
     h("DUPLICATE ROWS")
     n_dup = df.duplicated().sum()
     lines.append(f"{n_dup:,} duplicate rows ({n_dup/len(df)*100:.2f}%)")
 
-    h("NUMERIC SUMMARY (describe)")
-    num_cols = df.select_dtypes(include="number").columns.tolist()
+    h("NUMERIC SUMMARY")
+    # Coerce to numeric for describe
+    num_df = df.apply(pd.to_numeric, errors="coerce")
+    num_cols = num_df.dropna(axis=1, how="all").columns.tolist()
     if num_cols:
-        lines.append(df[num_cols].describe().round(2).to_string())
-    else:
-        lines.append("No numeric columns detected.")
+        lines.append(num_df[num_cols].describe().round(2).to_string())
 
-    h("CATEGORICAL COLUMNS — unique value counts")
-    cat_cols = df.select_dtypes(exclude="number").columns.tolist()
-    for col in cat_cols:
+    h("CATEGORICAL COLUMNS — unique value counts & top-5")
+    for col in df.columns:
         n_unique = df[col].nunique()
         top_vals = df[col].value_counts().head(5).to_dict()
         lines.append(f"\n  {col!r}  ({n_unique} unique values)")
@@ -115,9 +80,14 @@ def inspect(df: pd.DataFrame) -> str:
 
 
 def main():
-    path = download_if_needed()
-    print(f"[INFO] Loading: {path}")
-    df   = load_dataset(path)
+    if not os.path.exists(RAW_CSV):
+        sys.exit(
+            f"[ERROR] Dataset not found at {RAW_CSV}\n"
+            "Please place flight_pricing_dataset.csv in data/raw/ as flights.csv"
+        )
+
+    print(f"[Stage 1] Loading: {RAW_CSV}")
+    df = load_dataset(RAW_CSV)
 
     report = inspect(df)
     print(report)
@@ -126,9 +96,7 @@ def main():
     summary_path = os.path.join(OUT_DIR, "schema_summary.txt")
     with open(summary_path, "w") as f:
         f.write(report)
-    print(f"\n[INFO] Schema summary saved to: {summary_path}")
-
-    # Expose df shape as a sanity check for downstream scripts
+    print(f"\n[Stage 1] Schema summary saved to: {summary_path}")
     return df
 
 

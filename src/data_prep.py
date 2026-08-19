@@ -1,18 +1,21 @@
 """
 Stage 2 — Data Cleaning & Preprocessing
 
-Reads the raw dataset, fixes all structural and quality issues, and writes
-a clean CSV to data/processed/flights_clean.csv.
+Actual schema confirmed in Stage 1:
+  Flight_ID, Airline, Source, Destination, Departure_Date, Departure_Time,
+  Arrival_Time, Duration, Total_Stops, Distance_km, Travel_Class,
+  Days_Before_Departure, Season, Weekday, Aircraft_Type, Booking_Channel,
+  Passenger_Count, Price
 
-What "cleaning" means here:
-  - Standardising inconsistent string formats (dates, duration, times)
-  - Removing or imputing missing values with a documented justification for each
-  - Dropping exact duplicates that would bias model training
-  - Capping extreme price outliers that are almost certainly data entry errors
-  - Deriving a days_to_departure feature (proxy for booking lead time)
+Key cleaning challenges discovered:
+  1. All columns loaded as object dtype — numeric columns need coercion
+  2. Duration is a mix of float strings ("1.67") and "Xh Ym" strings
+  3. Total_Stops is a mix of "0"/"1"/"2" integers and "non-stop"/"1 stop"/"2 stops" strings
+  4. Departure_Time is a mix of "HH:MM" and "HH:MM AM/PM" formats
+  5. ~5% null rate in every column
+  6. Price has right-skewed distribution with some extreme international fares
 
-Every fix is justified inline with an alternative that was considered but
-rejected, so the decisions are defensible in an interview.
+Every fix is justified inline with the alternative considered.
 """
 
 import os
@@ -21,218 +24,204 @@ import sys
 import numpy as np
 import pandas as pd
 
-# ── paths ──────────────────────────────────────────────────────────────────
 ROOT_DIR      = os.path.join(os.path.dirname(__file__), "..")
-RAW_XLSX      = os.path.join(ROOT_DIR, "data", "raw", "flights.xlsx")
 RAW_CSV       = os.path.join(ROOT_DIR, "data", "raw", "flights.csv")
 PROCESSED_DIR = os.path.join(ROOT_DIR, "data", "processed")
 OUT_PATH      = os.path.join(PROCESSED_DIR, "flights_clean.csv")
 
 
-# ── helpers ────────────────────────────────────────────────────────────────
-
 def load_raw() -> pd.DataFrame:
-    if os.path.exists(RAW_XLSX):
-        return pd.read_excel(RAW_XLSX)
-    if os.path.exists(RAW_CSV):
-        return pd.read_csv(RAW_CSV)
-    sys.exit("[ERROR] Raw dataset not found. Run src/inspect_data.py first.")
+    if not os.path.exists(RAW_CSV):
+        sys.exit("[ERROR] Raw dataset not found. Place flights.csv in data/raw/")
+    return pd.read_csv(RAW_CSV, low_memory=False)
 
 
-def parse_duration(duration_str) -> float:
+def parse_duration_to_minutes(val) -> float:
     """
-    Convert duration strings like '2h 30m', '1h', '45m', '2h 0m' to minutes.
-    Returns NaN for unparseable values.
-
-    Why minutes, not hours? Minutes is integer-friendly and avoids float
-    precision issues when encoding fractional hours.
+    Normalise the heterogeneous Duration column to float minutes.
+    Observed formats:
+      - "1.67"  → treat as hours (multiply by 60)
+      - "0h 45m" → parse hours + minutes
+      - "14.80"  → treat as hours
+    Assumption: bare floats are in hours (consistent with short domestic
+    flights being <2.0 and long-hauls being >10.0).
+    Alternative: treat bare floats as minutes. Rejected because "0.75"
+    would imply 0.75 minutes (45 seconds), which makes no sense for a flight.
     """
-    if pd.isna(duration_str):
+    if pd.isna(val):
         return np.nan
-    s = str(duration_str).strip().lower()
-    hours   = re.search(r"(\d+)\s*h", s)
-    minutes = re.search(r"(\d+)\s*m", s)
-    total   = 0
-    if hours:
-        total += int(hours.group(1)) * 60
-    if minutes:
-        total += int(minutes.group(1))
-    return float(total) if (hours or minutes) else np.nan
-
-
-def parse_stops(stops_val) -> int:
-    """
-    Normalise the 'Total_Stops' column to an integer.
-    'non-stop' → 0, '1 stop' → 1, '2 stops' → 2, etc.
-    """
-    if pd.isna(stops_val):
+    s = str(val).strip()
+    # Pattern: "Xh Ym" or "Xh" or "Ym"
+    h_match = re.search(r"(\d+)\s*h", s)
+    m_match = re.search(r"(\d+)\s*m", s)
+    if h_match or m_match:
+        hours   = int(h_match.group(1)) if h_match else 0
+        minutes = int(m_match.group(1)) if m_match else 0
+        return float(hours * 60 + minutes)
+    # Bare numeric — treat as hours
+    try:
+        return float(s) * 60.0
+    except ValueError:
         return np.nan
-    s = str(stops_val).strip().lower()
-    if "non" in s or s == "0":
+
+
+def parse_stops(val) -> int:
+    """
+    Normalise Total_Stops to integer.
+    Observed: "0", "1", "2", "3", "4", "non-stop", "1 stop", "2 stops"
+    """
+    if pd.isna(val):
+        return np.nan
+    s = str(val).strip().lower()
+    if s in ("non-stop", "nonstop", "0"):
         return 0
     m = re.search(r"(\d+)", s)
     return int(m.group(1)) if m else np.nan
 
 
-def parse_dep_hour(time_str) -> float:
+def parse_dep_hour(val) -> float:
     """
-    Extract departure hour (0-23) from strings like '06:45', '18:30 PM'.
-    Returns NaN on failure.
+    Extract departure hour (0–23) from mixed time formats.
+    "07:05" → 7.0
+    "8:10 PM" → 20.0
+    "10:40 PM" → 22.0
+    "12:10" → 12.0 (noon)
     """
-    if pd.isna(time_str):
+    if pd.isna(val):
         return np.nan
-    s = str(time_str).strip()
-    m = re.match(r"(\d{1,2}):(\d{2})", s)
-    if m:
-        return float(m.group(1))
-    return np.nan
-
-
-def parse_date(date_str) -> pd.Timestamp:
-    """Parse date strings with pandas' flexible parser; return NaT on failure."""
-    try:
-        return pd.to_datetime(date_str, dayfirst=True)
-    except Exception:
-        return pd.NaT
-
-
-def days_to_departure_proxy(df: pd.DataFrame) -> pd.Series:
-    """
-    The dataset does not have an explicit 'booking date' column, so we cannot
-    compute true days-to-departure (DTD) from actual purchase timestamps.
-
-    Proxy approach: treat the journey date relative to the earliest journey
-    date in the dataset as a relative ordering feature. This won't give
-    absolute DTD numbers, but it preserves the temporal ordering signal
-    (earlier journeys relative to the dataset window tend to have been booked
-    further in advance on average), which still carries predictive information.
-
-    Alternative considered: drop DTD entirely. Rejected because booking lead
-    time is a well-documented price driver and losing it weakens the model.
-    Alternative considered: use a fixed reference date (e.g. dataset pull date).
-    Rejected because we don't know when the dataset was pulled.
-    """
-    if "Date_of_Journey" not in df.columns:
-        return pd.Series(np.nan, index=df.index)
-    min_date = df["Date_of_Journey"].min()
-    return (df["Date_of_Journey"] - min_date).dt.days.astype(float)
-
-
-# ── main cleaning pipeline ─────────────────────────────────────────────────
-
-def clean(df: pd.DataFrame) -> pd.DataFrame:
-    print(f"[Stage 2] Raw shape: {df.shape}")
-
-    # ── 1. column name normalisation ─────────────────────────────────────
-    # Strip whitespace from column names (common in Excel exports)
-    df.columns = df.columns.str.strip()
-
-    # ── 2. drop exact duplicates ─────────────────────────────────────────
-    # Exact duplicates are almost certainly copy-paste errors in the source
-    # spreadsheet. Keeping them would inflate the weight of those records
-    # in training. Alternative: keep first occurrence — same net effect.
-    before = len(df)
-    df = df.drop_duplicates()
-    print(f"[Stage 2] Dropped {before - len(df)} exact duplicate rows.")
-
-    # ── 3. parse Date_of_Journey ─────────────────────────────────────────
-    if "Date_of_Journey" in df.columns:
-        df["Date_of_Journey"] = df["Date_of_Journey"].apply(parse_date)
-        n_bad = df["Date_of_Journey"].isna().sum()
-        if n_bad > 0:
-            print(f"[Stage 2] Dropping {n_bad} rows with unparseable journey dates.")
-            df = df.dropna(subset=["Date_of_Journey"])
-        df["journey_month"] = df["Date_of_Journey"].dt.month
-        df["journey_dow"]   = df["Date_of_Journey"].dt.dayofweek  # 0=Mon
-
-    # ── 4. derive days_to_departure proxy ───────────────────────────────
-    df["days_to_departure"] = days_to_departure_proxy(df)
-
-    # ── 5. parse Duration → duration_minutes ────────────────────────────
-    dur_col = next((c for c in df.columns if "duration" in c.lower()), None)
-    if dur_col:
-        df["duration_minutes"] = df[dur_col].apply(parse_duration)
-        n_bad = df["duration_minutes"].isna().sum()
-        if n_bad > 0:
-            # Impute with median rather than drop: losing rows over a parseable
-            # issue is wasteful; median is robust to the outliers still present.
-            median_dur = df["duration_minutes"].median()
-            print(f"[Stage 2] Imputing {n_bad} unparseable durations with median ({median_dur:.0f} min).")
-            df["duration_minutes"] = df["duration_minutes"].fillna(median_dur)
-
-    # ── 6. parse Total_Stops → stops (integer) ───────────────────────────
-    stop_col = next((c for c in df.columns if "stop" in c.lower()), None)
-    if stop_col:
-        df["stops"] = df[stop_col].apply(parse_stops)
-        n_bad = df["stops"].isna().sum()
-        if n_bad > 0:
-            # Impute with mode (most common number of stops); dropping would
-            # lose valid price/flight data over a single column issue.
-            mode_stops = int(df["stops"].mode()[0])
-            print(f"[Stage 2] Imputing {n_bad} unknown stop counts with mode ({mode_stops}).")
-            df["stops"] = df["stops"].fillna(mode_stops).astype(int)
-        else:
-            df["stops"] = df["stops"].astype(int)
-
-    # ── 7. parse Dep_Time → dep_hour ────────────────────────────────────
-    dep_col = next((c for c in df.columns if "dep" in c.lower() and "time" in c.lower()), None)
-    if dep_col:
-        df["dep_hour"] = df[dep_col].apply(parse_dep_hour)
-        n_bad = df["dep_hour"].isna().sum()
-        if n_bad > 0:
-            median_h = df["dep_hour"].median()
-            print(f"[Stage 2] Imputing {n_bad} unparseable dep_hours with median ({median_h:.0f}h).")
-            df["dep_hour"] = df["dep_hour"].fillna(median_h)
-
-    # ── 8. clean the Price column ─────────────────────────────────────────
-    price_col = next((c for c in df.columns if "price" in c.lower()), None)
-    if price_col:
-        # Coerce to numeric; non-numeric entries become NaN
-        df[price_col] = pd.to_numeric(df[price_col], errors="coerce")
-        n_bad = df[price_col].isna().sum()
-        if n_bad > 0:
-            print(f"[Stage 2] Dropping {n_bad} rows where Price is non-numeric.")
-            df = df.dropna(subset=[price_col])
-
-        # Outlier treatment: prices below ₹500 or above the 99.5th percentile
-        # are almost certainly data errors (test records, miskeys).
-        # Cap rather than drop, to keep the row count high.
-        low_clip  = 500
-        high_clip = df[price_col].quantile(0.995)
-        n_low  = (df[price_col] < low_clip).sum()
-        n_high = (df[price_col] > high_clip).sum()
-        if n_low > 0:
-            print(f"[Stage 2] Dropping {n_low} rows with Price < ₹{low_clip} (likely errors).")
-            df = df[df[price_col] >= low_clip]
-        if n_high > 0:
-            print(f"[Stage 2] Capping {n_high} rows at 99.5th-percentile Price = ₹{high_clip:.0f}.")
-            df[price_col] = df[price_col].clip(upper=high_clip)
-
-        # Rename to a standard column name used by all downstream scripts
-        df = df.rename(columns={price_col: "Price"})
-
-    # ── 9. strip leading/trailing whitespace from all string columns ──────
-    str_cols = df.select_dtypes(include="object").columns
-    for col in str_cols:
-        df[col] = df[col].str.strip()
-
-    # ── 10. build route feature ───────────────────────────────────────────
-    src_col  = next((c for c in df.columns if c.lower() in ("source", "from")), None)
-    dst_col  = next((c for c in df.columns if c.lower() in ("destination", "to")), None)
-    if src_col and dst_col:
-        df["route_combined"] = df[src_col].str.lower() + "_to_" + df[dst_col].str.lower()
-
-    print(f"[Stage 2] Clean shape: {df.shape}")
-    return df
+    s = str(val).strip()
+    m = re.match(r"(\d{1,2}):(\d{2})\s*(AM|PM)?", s, re.IGNORECASE)
+    if not m:
+        return np.nan
+    hour, minute, ampm = int(m.group(1)), int(m.group(2)), m.group(3)
+    if ampm:
+        ampm = ampm.upper()
+        if ampm == "PM" and hour != 12:
+            hour += 12
+        elif ampm == "AM" and hour == 12:
+            hour = 0
+    return float(hour)
 
 
 def main():
     df = load_raw()
-    df = clean(df)
+    print(f"[Stage 2] Raw shape: {df.shape}")
+
+    # ── 1. Strip whitespace from column names ────────────────────────────
+    df.columns = df.columns.str.strip()
+
+    # ── 2. Drop exact duplicates ─────────────────────────────────────────
+    before = len(df)
+    df = df.drop_duplicates()
+    print(f"[Stage 2] Dropped {before - len(df)} duplicate rows.")
+
+    # ── 3. Drop Flight_ID — not a feature, just an identifier ────────────
+    df = df.drop(columns=["Flight_ID"], errors="ignore")
+
+    # ── 4. Coerce numeric columns ─────────────────────────────────────────
+    # Distance_km, Days_Before_Departure, Passenger_Count, Price all stored
+    # as strings due to mixed types. Coerce with errors='coerce' → NaN.
+    for col in ["Distance_km", "Days_Before_Departure", "Passenger_Count"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # ── 5. Parse Price ────────────────────────────────────────────────────
+    df["Price"] = pd.to_numeric(df["Price"], errors="coerce")
+    n_bad_price = df["Price"].isna().sum()
+    if n_bad_price:
+        print(f"[Stage 2] Dropping {n_bad_price} rows with non-numeric Price.")
+        df = df.dropna(subset=["Price"])
+
+    # Remove prices ≤ 0 (data errors)
+    n_zero = (df["Price"] <= 0).sum()
+    if n_zero:
+        print(f"[Stage 2] Dropping {n_zero} rows with Price ≤ 0.")
+        df = df[df["Price"] > 0]
+
+    # Cap at 99.5th percentile to reduce influence of extreme international fares
+    # Alternative: log-transform. Not done here to keep Price interpretable in ₹.
+    high_clip = df["Price"].quantile(0.995)
+    n_high = (df["Price"] > high_clip).sum()
+    if n_high:
+        print(f"[Stage 2] Capping {n_high} extreme prices at ₹{high_clip:,.0f} (99.5th pct).")
+        df["Price"] = df["Price"].clip(upper=high_clip)
+
+    # ── 6. Parse Duration → duration_minutes ────────────────────────────
+    if "Duration" in df.columns:
+        df["duration_minutes"] = df["Duration"].apply(parse_duration_to_minutes)
+        n_bad = df["duration_minutes"].isna().sum()
+        med_dur = df["duration_minutes"].median()
+        if n_bad:
+            print(f"[Stage 2] Imputing {n_bad} unparseable durations with median ({med_dur:.0f} min).")
+            df["duration_minutes"] = df["duration_minutes"].fillna(med_dur)
+        # Sanity: flights < 20 min or > 24 h are implausible
+        n_implausible = ((df["duration_minutes"] < 20) | (df["duration_minutes"] > 1440)).sum()
+        if n_implausible:
+            print(f"[Stage 2] Capping {n_implausible} implausible durations to [20, 1440] min.")
+            df["duration_minutes"] = df["duration_minutes"].clip(lower=20, upper=1440)
+        df = df.drop(columns=["Duration"])
+
+    # ── 7. Parse Total_Stops → stops (int) ──────────────────────────────
+    if "Total_Stops" in df.columns:
+        df["stops"] = df["Total_Stops"].apply(parse_stops)
+        n_bad = df["stops"].isna().sum()
+        if n_bad:
+            mode_stops = int(df["stops"].mode()[0])
+            print(f"[Stage 2] Imputing {n_bad} unknown stop counts with mode ({mode_stops}).")
+            df["stops"] = df["stops"].fillna(mode_stops)
+        df["stops"] = df["stops"].astype(int)
+        df = df.drop(columns=["Total_Stops"])
+
+    # ── 8. Parse Departure_Time → dep_hour ──────────────────────────────
+    if "Departure_Time" in df.columns:
+        df["dep_hour"] = df["Departure_Time"].apply(parse_dep_hour)
+        n_bad = df["dep_hour"].isna().sum()
+        if n_bad:
+            med_h = df["dep_hour"].median()
+            print(f"[Stage 2] Imputing {n_bad} dep_hours with median ({med_h:.0f}h).")
+            df["dep_hour"] = df["dep_hour"].fillna(med_h)
+        df = df.drop(columns=["Departure_Time"])
+
+    # ── 9. Parse Departure_Date ──────────────────────────────────────────
+    if "Departure_Date" in df.columns:
+        df["Departure_Date"] = pd.to_datetime(df["Departure_Date"], errors="coerce")
+        df["journey_month"]  = df["Departure_Date"].dt.month.fillna(-1).astype(int)
+        df = df.drop(columns=["Departure_Date"])
+
+    # ── 10. Drop Arrival_Time (not useful as raw string; duration is better) ─
+    df = df.drop(columns=["Arrival_Time"], errors="ignore")
+
+    # ── 11. Handle remaining nulls in categorical columns ────────────────
+    # Fill with "Unknown" — preserves rows while signalling missingness.
+    # Alternative: drop rows with any null. Rejected because ~5% nulls per
+    # column means we'd lose nearly half the dataset.
+    cat_cols = df.select_dtypes(include="object").columns.tolist()
+    for col in cat_cols:
+        n_null = df[col].isna().sum()
+        if n_null:
+            df[col] = df[col].fillna("Unknown")
+
+    # ── 12. Handle remaining numeric nulls with column median ────────────
+    num_cols = df.select_dtypes(include="number").columns.tolist()
+    for col in num_cols:
+        n_null = df[col].isna().sum()
+        if n_null and col != "Price":
+            df[col] = df[col].fillna(df[col].median())
+
+    # ── 13. Build route_combined feature ────────────────────────────────
+    if "Source" in df.columns and "Destination" in df.columns:
+        df["route_combined"] = (
+            df["Source"].str.strip().str.lower()
+            + "_to_"
+            + df["Destination"].str.strip().str.lower()
+        )
+
+    print(f"[Stage 2] Clean shape: {df.shape}")
+    print(f"[Stage 2] Columns: {df.columns.tolist()}")
 
     os.makedirs(PROCESSED_DIR, exist_ok=True)
     df.to_csv(OUT_PATH, index=False)
-    print(f"[Stage 2] Clean dataset saved to: {OUT_PATH}")
+    print(f"[Stage 2] Saved clean dataset: {OUT_PATH}")
     return df
 
 
