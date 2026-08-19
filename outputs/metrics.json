@@ -1,0 +1,18 @@
+{
+  "metrics": [
+    {
+      "model": "Linear Regression (baseline)",
+      "RMSE": 30141.46,
+      "MAE": 21428.96,
+      "R2": 0.7882
+    },
+    {
+      "model": "Random Forest",
+      "RMSE": 20264.44,
+      "MAE": 11043.51,
+      "R2": 0.9043
+    }
+  ],
+  "test_size": 0.2,
+  "random_seed": 42
+}

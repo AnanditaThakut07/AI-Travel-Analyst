@@ -129,12 +129,14 @@ streamlit run app/app.py     # Stage 9: dashboard
 
 ## Results
 
-*(Updated after running the full pipeline)*
-
 | Model | RMSE | MAE | R² |
 |-------|------|-----|----|
-| Linear Regression (baseline) | — | — | — |
-| Random Forest | — | — | — |
+| Linear Regression (baseline) | ₹30,141 | ₹21,429 | 0.788 |
+| **Random Forest (primary)** | **₹20,264** | **₹11,044** | **0.904** |
+
+RF improves RMSE by **32.8%** over the baseline. An R² of 0.904 means the model explains **90.4% of price variance** across 18,052 test flights.
+
+**What the numbers mean for a traveller:** On average, our price prediction is off by ₹11,044 (MAE). Given that prices range from ₹2,000 to ₹200,000, this is a reasonable error band — primarily driven by last-minute premium fares and international routes where Distance_km is the dominant signal.
 
 **Key insights from EDA:**
 1. **Airline** is the strongest categorical price driver (ANOVA)
