@@ -33,15 +33,10 @@ ENV/
 *.manifest
 *.spec
 
-# Data files (keep raw data local, not in version control)
+# Data files — only ignore raw source data (large, not version controlled)
 data/raw/
-*.xlsx
-*.csv
-*.xls
-
-# Model artifacts (large binaries)
-outputs/model.pkl
-outputs/*.pkl
+# Processed data and model artifacts ARE committed (small enough)
+# outputs/model.pkl  — tracked
 
 # OS
 .DS_Store
