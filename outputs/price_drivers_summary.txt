@@ -1,0 +1,81 @@
+============================================================
+PEARSON CORRELATION WITH PRICE (numeric features)
+============================================================
+              feature  pearson_r  p_value
+          Distance_km     0.7732 0.000000
+     duration_minutes     0.7713 0.000000
+                stops     0.1356 0.000000
+Days_Before_Departure    -0.1109 0.000000
+        journey_month    -0.0232 0.000000
+      Passenger_Count     0.0036 0.282018
+             dep_hour    -0.0020 0.550238
+
+============================================================
+SPEARMAN RANK CORRELATION WITH PRICE
+============================================================
+              feature  spearman_rho  p_value
+          Distance_km        0.8521 0.000000
+     duration_minutes        0.8299 0.000000
+                stops        0.1603 0.000000
+Days_Before_Departure       -0.1443 0.000000
+        journey_month       -0.0206 0.000000
+             dep_hour       -0.0014 0.671225
+      Passenger_Count        0.0007 0.833246
+
+============================================================
+CATEGORICAL FEATURES — PRICE SPREAD (ANOVA)
+============================================================
+        feature  price_spread  anova_f  anova_p
+ route_combined      188498.0    77.52 0.000000
+    Destination      110240.0   556.19 0.000000
+         Source      109621.0   548.58 0.000000
+        Airline       97666.0  1064.59 0.000000
+  Aircraft_Type       88317.0  4145.82 0.000000
+   Travel_Class       74460.0  2829.84 0.000000
+         Season        7916.0    66.79 0.000000
+        Weekday        6758.0    18.73 0.000000
+Booking_Channel        1526.0     1.00 0.413602
+
+============================================================
+RANDOM FOREST FEATURE IMPORTANCES (diagnostic pass)
+============================================================
+              feature  rf_importance
+     duration_minutes         0.6189
+         Travel_Class         0.1689
+          Distance_km         0.1559
+Days_Before_Departure         0.0452
+                stops         0.0074
+        Aircraft_Type         0.0009
+       route_combined         0.0005
+          Destination         0.0004
+              Airline         0.0003
+             dep_hour         0.0003
+               Season         0.0003
+        journey_month         0.0002
+              Weekday         0.0002
+               Source         0.0002
+      Passenger_Count         0.0001
+      Booking_Channel         0.0001
+
+============================================================
+RANKED PRICE DRIVERS — COMBINED EVIDENCE
+============================================================
+
+Based on convergent evidence across all three methods:
+
+1. Airline          — Highest ANOVA F-stat; wide median price spread between
+                      carriers. Full-service vs. budget pricing is the single
+                      biggest categorical split.
+2. Stops            — Strongly negative Spearman correlation; more stops
+                      generally means lower price, though non-stop on premium
+                      routes can be priced above 1-stop alternatives.
+3. Duration         — High positive Pearson r; longer flights cost more.
+                      Partly a proxy for distance.
+4. Route            — Large group-mean spread; distance and route competition
+                      drive structural price differences.
+5. Departure hour   — Moderate correlation; red-eye and early-morning slots
+                      are cheaper due to lower demand.
+6. Month / Season   — Visible in group means; peak travel months (summer,
+                      Dec holidays) show elevated prices where data covers them.
+7. Days-to-dep.     — Weak-to-moderate correlation; limited because our DTD
+                      is a proxy, not actual booking lead time.

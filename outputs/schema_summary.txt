@@ -1,0 +1,158 @@
+
+============================================================
+SHAPE
+============================================================
+Rows: 100,000    Columns: 18
+
+============================================================
+COLUMN NAMES
+============================================================
+  [00] Flight_ID
+  [01] Airline
+  [02] Source
+  [03] Destination
+  [04] Departure_Date
+  [05] Departure_Time
+  [06] Arrival_Time
+  [07] Duration
+  [08] Total_Stops
+  [09] Distance_km
+  [10] Travel_Class
+  [11] Days_Before_Departure
+  [12] Season
+  [13] Weekday
+  [14] Aircraft_Type
+  [15] Booking_Channel
+  [16] Passenger_Count
+  [17] Price
+
+============================================================
+DATA TYPES
+============================================================
+Flight_ID                object
+Airline                  object
+Source                   object
+Destination              object
+Departure_Date           object
+Departure_Time           object
+Arrival_Time             object
+Duration                 object
+Total_Stops              object
+Distance_km              object
+Travel_Class             object
+Days_Before_Departure    object
+Season                   object
+Weekday                  object
+Aircraft_Type            object
+Booking_Channel          object
+Passenger_Count          object
+Price                    object
+
+============================================================
+NULL COUNTS (per column)
+============================================================
+                       nulls  pct_%
+Flight_ID                  0   0.00
+Airline                 4880   4.88
+Source                  4915   4.92
+Destination             4881   4.88
+Departure_Date          4927   4.93
+Departure_Time          4868   4.87
+Arrival_Time            4789   4.79
+Duration                5042   5.04
+Total_Stops             4905   4.90
+Distance_km             4923   4.92
+Travel_Class            4863   4.86
+Days_Before_Departure   4784   4.78
+Season                  4776   4.78
+Weekday                 4720   4.72
+Aircraft_Type           4852   4.85
+Booking_Channel         4962   4.96
+Passenger_Count         4826   4.83
+Price                   5053   5.05
+
+============================================================
+DUPLICATE ROWS
+============================================================
+1,961 duplicate rows (1.96%)
+
+============================================================
+NUMERIC SUMMARY
+============================================================
+       Duration  Total_Stops  Distance_km  Days_Before_Departure  Passenger_Count      Price
+count  12568.00     56955.00     92242.00               93807.00         93169.00   92052.00
+mean       8.06         0.73      5152.72                  35.84             2.12   72973.03
+std        5.95         0.68      4424.52                  43.80             1.31   77661.27
+min        0.75         0.00       150.00                   0.00             1.00     152.13
+25%        3.27         0.00      1531.40                   7.00             1.00   13239.49
+50%        5.83         1.00      3213.20                  19.00             2.00   49103.28
+75%       12.09         1.00      7901.80                  41.00             3.00  113660.28
+max       26.89         2.00     18353.40                 180.00             6.00  999306.03
+
+============================================================
+CATEGORICAL COLUMNS — unique value counts & top-5
+============================================================
+
+  'Flight_ID'  (98039 unique values)
+    top-5: {'FL195438': 3, 'FL192440': 3, 'FL119204': 3, 'FL101411': 3, 'FL173531': 3}
+
+  'Airline'  (39 unique values)
+    top-5: {'Singapore Airlines': 7864, 'Etihad Airways': 7802, 'Lufthansa': 7786, 'Emirates': 7722, 'Thai Airways': 7708}
+
+  'Source'  (54 unique values)
+    top-5: {'Chennai': 3519, 'Pune': 3506, 'New York': 3502, 'Singapore': 3489, 'Doha': 3482}
+
+  'Destination'  (54 unique values)
+    top-5: {'Goa': 3503, 'Bangkok': 3493, 'Pune': 3488, 'Hyderabad': 3487, 'Ahmedabad': 3472}
+
+  'Departure_Date'  (730 unique values)
+    top-5: {'2025-04-05': 168, '2026-09-18': 163, '2025-07-07': 163, '2026-10-19': 162, '2026-10-10': 162}
+
+  'Departure_Time'  (576 unique values)
+    top-5: {'09:50': 242, '04:25': 241, '17:20': 234, '08:30': 234, '03:05': 232}
+
+  'Arrival_Time'  (2880 unique values)
+    top-5: {'06:24': 64, '08:00': 61, '08:58': 60, '23:49': 60, '09:06': 59}
+
+  'Duration'  (5111 unique values)
+    top-5: {'1h 10m': 377, '1h 12m': 316, '1h 11m': 313, '0h 45m': 259, '2h 35m': 235}
+
+  'Total_Stops'  (6 unique values)
+    top-5: {'1': 26710, '0': 22887, '1 stop': 17673, 'non-stop': 15433, '2': 7358}
+
+  'Distance_km'  (59484 unique values)
+    top-5: {'150': 590, '150 km': 19, '520.3': 17, '545.3': 15, '523.2': 14}
+
+  'Travel_Class'  (4 unique values)
+    top-5: {'Economy': 64867, 'Premium Economy': 15078, 'Business': 11249, 'First': 3943}
+
+  'Days_Before_Departure'  (341 unique values)
+    top-5: {'0': 3554, '3': 3535, '1': 3494, '2': 3448, '4': 2647}
+
+  'Season'  (4 unique values)
+    top-5: {'Monsoon': 31808, 'Summer': 24116, 'Winter': 23286, 'Autumn': 16014}
+
+  'Weekday'  (7 unique values)
+    top-5: {'Sunday': 13809, 'Saturday': 13632, 'Tuesday': 13610, 'Wednesday': 13590, 'Monday': 13548}
+
+  'Aircraft_Type'  (8 unique values)
+    top-5: {'Airbus A320': 20450, 'Boeing 777': 13520, 'Airbus A350': 13446, 'Boeing 787 Dreamliner': 13436, 'Airbus A380': 13336}
+
+  'Booking_Channel'  (5 unique values)
+    top-5: {'Website': 30696, 'Mobile App': 28379, 'Travel Agent': 17048, 'Third-Party': 13321, 'Airport Counter': 5594}
+
+  'Passenger_Count'  (12 unique values)
+    top-5: {'1': 39079, '2': 27526, '3': 12317, '4': 7566, '5': 3884}
+
+  'Price'  (78725 unique values)
+    top-5: {'200000': 8989, '2000': 2160, '15000': 1569, '25000': 1179, 'Rs. 200,000.00': 296}
+
+============================================================
+SAMPLE — first 5 rows
+============================================================
+  Flight_ID          Airline             Source Destination Departure_Date Departure_Time Arrival_Time Duration Total_Stops Distance_km Travel_Class Days_Before_Departure   Season   Weekday Aircraft_Type Booking_Channel Passenger_Count      Price
+0  FL133547           Indigo          Hyderabad   Ahmedabad     2025-08-02        8:10 PM        21:50     1.67           0       910.5      Economy                    43  Monsoon  Saturday    Boeing 737      Mobile App               5    5181.56
+1  FL133458    AirAsia India               Pune      Mumbai     2025-06-05          12:10        12:55   0h 45m    non-stop         150      Economy                    45  Monsoon  Thursday        ATR 72         Website               3       2000
+2  FL173851    Qatar Airways             Sydney         PNQ     2025-02-11        5:05 PM      7:53 AM    14.80      1 stop     10168.1      Economy                     3      NaN   Tuesday    Boeing 777      Mobile App               3  174762.69
+3  FL101953    AirAsia India  Bangalore Airport         BOM     2025-04-19          07:05     10:16 AM   3h 11m           1       868.3      Economy                    33   Summer  Saturday   Airbus A320      Mobile App               1    2846.09
+4  FL162887  British Airways             Sydney         Goa     2026-07-05       10:40 PM        12:36    13.93    non-stop     10478.0      Economy                     6  Monsoon    Sunday   Airbus A320         Website               2  145331.64
