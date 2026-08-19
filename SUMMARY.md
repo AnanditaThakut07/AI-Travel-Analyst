@@ -12,14 +12,14 @@ AI Travel Analyst is a three-layer data science pipeline built on a real Indian 
 
 | Stage | What happens | Output |
 |-------|-------------|--------|
-| **Clean** | Parse duration/time strings, handle nulls, drop duplicates, cap price outliers, derive `days_to_departure` proxy | `flights_clean.csv` |
-| **EDA** | 7 visualisations (price distribution, by airline, by stops, vs DTD, by route, by month, correlation heatmap) | 7 PNGs in `outputs/plots/` |
-| **Drivers** | Pearson/Spearman correlation, ANOVA on categoricals, diagnostic RF importance — converge on ranked list of price drivers | `price_drivers_summary.txt` |
-| **Feature Engg** | One-hot encode low-cardinality categoricals; frequency-encode high-cardinality columns; bucket departure hour; derive month/DOW | `flights_features.csv`, `feature_columns.json` |
-| **Model** | Linear Regression baseline + Random Forest (300 trees); evaluate on 20% hold-out with RMSE, MAE, R² | `model.pkl`, `metrics.json` |
-| **Explainability** | SHAP TreeExplainer on RF (fallback to MDI if unavailable) — shows per-feature contribution direction and magnitude | SHAP plots |
-| **Recommender** | Filter by route/date; predict prices; normalise 3 signals; weighted composite score per preference | Ranked DataFrame with score breakdown |
-| **Dashboard** | Streamlit app: EDA tab, price drivers, model metrics, SHAP plots, recommender search, price predictor form | Interactive web app |
+| **Clean** | Parse mixed Duration strings ("Xh Ym" and float-hours), normalise Total_Stops ("non-stop"/"0"/"1 stop"), coerce all-object dtypes, cap Price outliers at ₹200,000. Drop 1,961 duplicates + 7,781 non-numeric prices → 90,258 clean rows | `flights_clean.csv` |
+| **EDA** | 7 visualisations: price distribution (right-skewed, median ~₹35k), by airline (39 carriers, wide spread), by stops (non-monotonic), vs Days_Before_Departure (negative slope confirmed), by route, by month, correlation heatmap | 7 PNGs in `outputs/plots/` |
+| **Drivers** | Pearson/Spearman show Distance_km (r=0.77) and duration_minutes (r=0.77) are top numeric drivers. ANOVA shows route_combined, Destination, Source, Airline as top categorical drivers. RF diagnostic: duration_minutes (0.62), Travel_Class (0.17), Distance_km (0.16) | `price_drivers_summary.txt` |
+| **Feature Engg** | OHE: Travel_Class(4), Season(4), Weekday(7), Aircraft_Type(8), Booking_Channel(5), Source(54), Destination(54). Freq-encode: Airline(39), route_combined. dep_hour → 4 time buckets → 152 total features | `flights_features.csv` |
+| **Model** | LR baseline: R²=0.788, RMSE=₹30,141, MAE=₹21,429. RF primary (300 trees, min_leaf=5): **R²=0.904, RMSE=₹20,264, MAE=₹11,044** — 32.8% RMSE improvement | `model.pkl`, `metrics.json` |
+| **Explainability** | SHAP TreeExplainer on RF: duration_minutes and Distance_km dominate; Travel_Class_Business creates large positive SHAP values; Days_Before_Departure has negative slope (book early = lower price confirmed) | SHAP plots |
+| **Recommender** | Filter by Source/Destination; predict prices via RF; normalise price/duration/stops to [0,1]; weighted composite score per preference (cheapest/fastest/fewest_stops/best_value) | Ranked DataFrame + score breakdown |
+| **Dashboard** | Streamlit analytics tool: EDA tab, price drivers, model metrics, SHAP plots, recommender search, price predictor form | Interactive web app |
 
 ---
 
