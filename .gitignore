@@ -33,10 +33,13 @@ ENV/
 *.manifest
 *.spec
 
-# Data files — only ignore raw source data (large, not version controlled)
+# Raw data — large, not version controlled
 data/raw/
-# Processed data and model artifacts ARE committed (small enough)
-# outputs/model.pkl  — tracked
+
+# Large generated artifacts — regenerate by running the pipeline
+outputs/model.pkl
+outputs/scaler.pkl
+data/processed/flights_features.csv
 
 # OS
 .DS_Store
