@@ -166,6 +166,3 @@ RF improves RMSE by **32.8%** over the baseline. An R² of 0.904 means the model
 
 ---
 
-## Screenshots
-
-*(Add after running the dashboard)*
