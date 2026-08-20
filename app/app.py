@@ -130,7 +130,7 @@ def plot_exists(name):
 def show_plot(name, caption=""):
     path = os.path.join(PLOTS_DIR, name)
     if os.path.exists(path):
-        st.image(path, caption=caption, width="100%")
+        st.image(path, caption=caption, use_container_width=True)
     else:
         st.info(f"Plot not yet generated: {name}. Run the EDA script first.")
 
