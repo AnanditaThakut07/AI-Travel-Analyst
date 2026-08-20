@@ -54,6 +54,17 @@ CLEAN_CSV  = os.path.join(ROOT_DIR, "data", "processed", "flights_clean.csv")
 META_JSON  = os.path.join(ROOT_DIR, "data", "processed", "feature_columns.json")
 MODEL_PATH = os.path.join(ROOT_DIR, "outputs", "model.pkl")
 
+
+def dep_hour_to_bucket(hour) -> int:
+    """0=Night(00-05), 1=Morning(06-11), 2=Afternoon(12-17), 3=Evening(18-23)"""
+    if pd.isna(hour):
+        return -1
+    h = int(float(hour))
+    if h < 6:   return 0
+    if h < 12:  return 1
+    if h < 18:  return 2
+    return 3
+
 PREFERENCE_WEIGHTS = {
     "cheapest":     {"price": 1.00, "duration": 0.00, "stops": 0.00},
     "fastest":      {"price": 0.20, "duration": 0.70, "stops": 0.10},
@@ -99,7 +110,6 @@ def predict_prices(candidates: pd.DataFrame, model, meta: dict) -> np.ndarray:
 
     # dep_hour → bucket (must happen before OHE loop to avoid encoding it)
     if "dep_hour" in feat_df.columns:
-        from src.features import dep_hour_to_bucket
         feat_df["dep_time_bucket"] = feat_df["dep_hour"].apply(dep_hour_to_bucket)
         feat_df = feat_df.drop(columns=["dep_hour"], errors="ignore")
 
